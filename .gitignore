@@ -1,9 +1,11 @@
 
 .idea/
 .env
+.streamlit
 
 __pycache__/
 
 
 /venv/
+.venv
 /creds/

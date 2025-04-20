@@ -1,10 +1,8 @@
-import os
-import ast
-from dotenv import load_dotenv
+import json
+import streamlit as st
 
-load_dotenv()
-TOKEN = os.getenv('TOKEN')
-SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
-WORKSHEET_NAME = os.getenv('WORKSHEET_NAME')
-user_column_map = ast.literal_eval(os.getenv('USER_COLUMN_MAP'))  # magic преобразование строки в словарь
-SCOPE = ast.literal_eval(os.getenv('SCOPE'))  # Google Sheets API credentials
+TOKEN = st.secrets['TOKEN']
+SPREADSHEET_ID = st.secrets['SPREADSHEET_ID']
+user_column_map = json.loads(st.secrets['user_column_map'])
+WORKSHEET_NAME = 'test'
+SCOPE = ['https://www.googleapis.com/auth/spreadsheets']
