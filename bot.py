@@ -9,13 +9,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 from settings import TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE
 from datetime import datetime
 
-# CREDS_FILE = './creds/so_test.json'  # Путь к файлу credential.json Больше не нужен
-
 # Инициализация бота
 bot = telebot.TeleBot(TOKEN)
 
-
-# /todo захостить бота и сделать его автономным
 
 # /todo добавить логгирование бота
 # Функция для подключения к Google Sheets
@@ -46,7 +42,7 @@ def write_to_sheet(value, usr_id, date):
         dates = sheet.col_values(1)  # Получаем все даты из столбца A (он с датами)
         if user_column_map[usr_id]:
             usr_name = user_column_map[usr_id]  # вытаскиваем из словаря Имя пользователя по его tg-id
-            col_names = sheet.row_values(1) # список всех имен пользователей
+            col_names = sheet.row_values(1)  # список всех имен пользователей
             col_index = col_names.index(usr_name) + 1
             row_num = dates.index(date) + 1  # +1 т.к. нумерация с 1
             sheet.update_cell(row_num, col_index, value)  # добавляем в последнюю ячейку определенного столбца данные
@@ -76,6 +72,7 @@ def handle_number_message(message):
                              reaction=[ReactionTypeEmoji("✍")]
                              )
 
+
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
 @bot.message_handler(
     func=lambda message: message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(
@@ -93,15 +90,6 @@ def handle_number_with_data_message(message):
                              message_id=message.id,
                              reaction=[ReactionTypeEmoji("✍")]
                              )
-
-# @bot.message_handler(commands=['list'])
-# def print_list_of_data(message):
-#     bot.reply_to(message, f'Текущий список: {list_of_data}')
-
-
-# @bot.message_handler(commands=['count'])
-# def count_of_data(message):
-#     bot.reply_to(message, f'Общее количество метров: {count_of_dist}')
 
 
 # Обработчик команды /start
