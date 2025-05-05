@@ -58,28 +58,6 @@ def plus_message_handling(message):
     return message.text.startswith('+')
 
 
-# Обработчик сообщений, начинающихся с "+" и числа
-# /todo проверять формат метров
-@bot.message_handler(func=plus_message_handling)
-def handle_number_message(message):
-    number = message.text[1:]
-    if plus_message_handling(message) and message.text[1:].isdigit():
-        user_id = str(message.from_user.id)
-        date = ""
-        print(f'ID пользователя, который ввел данные: {user_id}')
-        write_to_sheet(number, user_id, date)  # записываем число в таблицу
-
-        bot.set_message_reaction(chat_id=message.chat.id,
-                                 message_id=message.id,
-                                 reaction=[ReactionTypeEmoji("✍")]
-                                 )
-    else:
-        # bot.set_message_reaction(chat_id=message.chat.id,
-        #                          message_id=message.id,
-        #                          reaction=[ReactionTypeEmoji("❌")])
-        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
-
-
 def plus_data_message_handing(message):
     return message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
 
@@ -99,6 +77,28 @@ def handle_number_with_data_message(message):
                              message_id=message.id,
                              reaction=[ReactionTypeEmoji("✍")]
                              )
+
+
+# Обработчик сообщений, начинающихся с "+" и числа
+# /todo проверять формат метров
+@bot.message_handler(func=plus_message_handling)
+def handle_number_message(message):
+    number = message.text[1:]
+    if plus_message_handling(message) and message.text[1:].isdigit():
+        user_id = str(message.from_user.id)
+        date = ""
+        print(f'ID пользователя, который ввел данные: {user_id}')
+        write_to_sheet(number, user_id, date)  # записываем число в таблицу
+
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("✍")]
+                                 )
+    else:
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("❌")])
+        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
 
 
 # Обработчик команды /start
