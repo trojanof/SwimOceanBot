@@ -14,6 +14,8 @@ bot = telebot.TeleBot(TOKEN)
 
 
 # /todo добавить логгирование бота
+
+
 # Функция для подключения к Google Sheets
 def get_gsheet_client():
     cred_str = st.secrets['CREDS']
@@ -52,31 +54,38 @@ def write_to_sheet(value, usr_id, date):
         print(f'An error occurred: {e}')
 
 
-def plus_message_handlig(message):
+def plus_message_handling(message):
     return message.text.startswith('+') and message.text[1:].isdigit()
 
 
 # Обработчик сообщений, начинающихся с "+" и числа
-@bot.message_handler(func=plus_message_handlig)
+# /todo проверять формат метров
+@bot.message_handler(func=plus_message_handling)
 def handle_number_message(message):
     number = message.text[1:]
-    user_id = str(message.from_user.id)
-    date = ""
-    print(f'ID пользователя, который ввел данные: {user_id}')
-    write_to_sheet(number, user_id, date)  # записываем число в таблицу
-    # list_of_data.append(number)  # добавляем число в список
-    # count_of_dist += int(number)  # увеличиваем общий счетчик
-    # bot.reply_to(message, f'Number {number} has been recorded.')
-    bot.set_message_reaction(chat_id=message.chat.id,
-                             message_id=message.id,
-                             reaction=[ReactionTypeEmoji("✍")]
-                             )
+    if plus_message_handling(message):
+        user_id = str(message.from_user.id)
+        date = ""
+        print(f'ID пользователя, который ввел данные: {user_id}')
+        write_to_sheet(number, user_id, date)  # записываем число в таблицу
+
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("✍")]
+                                 )
+    else:
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("❌")])
+        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
+
+
+def plus_data_message_handing(message):
+    return message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
 
 
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
-@bot.message_handler(
-    func=lambda message: message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(
-        message.text.split()) == 2)
+@bot.message_handler(func=plus_data_message_handing)
 def handle_number_with_data_message(message):
     number = message.text.split()[0][1:]
     date = str(message.text.split()[1])  # ToDo проверять формат даты
@@ -95,7 +104,20 @@ def handle_number_with_data_message(message):
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "Hello! I'm a bot that records numbers from messages starting with '+' into a Google Sheet.")
+    bot.reply_to(message, "Привет! Я бот, который записывает метры, которые вы проплыли, в таблицу."
+                          "Чтобы увидеть список команд, которые я понимаю, и формат, "
+                          "в котором нужно записывать метры, введите команду /help")
+
+
+# /todo Доделать обработчик команды help, докидать команд
+# Обработчик команды /help
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    bot.reply_to(message, "Расстояние нужно писать исключительно в виде метров\n"
+                          "Список команд и правил записи:\n"
+                          "+<кол-во_метров> - записать метры (пример: +1000)\n"
+                          "+<кол-во_метров дата> - записать в конкретную дату (пример: +100 19.04.2025)\n"
+                          "")
 
 
 # Запуск бота
