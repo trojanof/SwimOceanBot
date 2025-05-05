@@ -55,7 +55,7 @@ def write_to_sheet(value, usr_id, date):
 
 
 def plus_message_handling(message):
-    return message.text.startswith('+') and message.text[1:].isdigit()
+    return message.text.startswith('+')
 
 
 # Обработчик сообщений, начинающихся с "+" и числа
@@ -104,7 +104,7 @@ def handle_number_with_data_message(message):
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "Привет! Я бот, который записывает метры, которые вы проплыли, в таблицу."
+    bot.reply_to(message, "Привет! Я бот, который записывает метры, которые вы проплыли, в таблицу. "
                           "Чтобы увидеть список команд, которые я понимаю, и формат, "
                           "в котором нужно записывать метры, введите команду /help")
 
@@ -116,7 +116,7 @@ def handle_help(message):
     bot.reply_to(message, "Расстояние нужно писать исключительно в виде метров\n"
                           "Список команд и правил записи:\n"
                           "+<кол-во_метров> - записать метры (пример: +1000)\n"
-                          "+<кол-во_метров дата> - записать в конкретную дату (пример: +100 19.04.2025)\n"
+                          "+<кол-во_метров дата> - записать в конкретную дату\n (пример: +100 19.04.2025)\n"
                           "")
 
 
