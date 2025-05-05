@@ -74,14 +74,14 @@ def handle_number_message(message):
                                  reaction=[ReactionTypeEmoji("✍")]
                                  )
     else:
-        bot.set_message_reaction(chat_id=message.chat.id,
-                                 message_id=message.id,
-                                 reaction=[ReactionTypeEmoji("❌")])
+        # bot.set_message_reaction(chat_id=message.chat.id,
+        #                          message_id=message.id,
+        #                          reaction=[ReactionTypeEmoji("❌")])
         bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
 
 
 def plus_data_message_handing(message):
-    plus_message_handling(message) and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
+    return message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
 
 
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
