@@ -63,7 +63,7 @@ def plus_message_handling(message):
 @bot.message_handler(func=plus_message_handling)
 def handle_number_message(message):
     number = message.text[1:]
-    if plus_message_handling(message):
+    if plus_message_handling(message) and message.text[1:].isdigit():
         user_id = str(message.from_user.id)
         date = ""
         print(f'ID пользователя, который ввел данные: {user_id}')
@@ -81,7 +81,7 @@ def handle_number_message(message):
 
 
 def plus_data_message_handing(message):
-    return message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
+    plus_message_handling(message) and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
 
 
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
