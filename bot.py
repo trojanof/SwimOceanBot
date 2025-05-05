@@ -42,16 +42,22 @@ def write_to_sheet(value, usr_id, date):
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
         """Ищем строку с указанной датой"""
         dates = sheet.col_values(1)  # Получаем все даты из столбца A (он с датами)
-        if user_column_map[usr_id]:
-            usr_name = user_column_map[usr_id]  # вытаскиваем из словаря Имя пользователя по его tg-id
-            col_names = sheet.row_values(1)  # список всех имен пользователей
-            col_index = col_names.index(usr_name) + 1
-            row_num = dates.index(date) + 1  # +1 т.к. нумерация с 1
-            sheet.update_cell(row_num, col_index, value)  # добавляем в последнюю ячейку определенного столбца данные
-            print(f'Value "{value}" appended to sheet')
+        # if user_column_map[usr_id]:
+        usr_name = user_column_map[usr_id]  # вытаскиваем из словаря Имя пользователя по его tg-id
+        col_names = sheet.row_values(1)  # список всех имен пользователей
+        col_index = col_names.index(usr_name) + 1
+        row_num = dates.index(date) + 1  # +1 т.к. нумерация с 1
+        sheet.update_cell(row_num, col_index, value)  # добавляем в последнюю ячейку определенного столбца данные
+        print(f'Value "{value}" appended to sheet')
 
     except Exception as e:
         print(f'An error occurred: {e}')
+
+
+# Проверка есть ли ID пользователя в общей базе
+def verify_id(user_id):
+    if user_column_map[user_id]:
+        return True
 
 
 def plus_message_handling(message):
@@ -76,24 +82,26 @@ def handle_number_with_data_message(message):
         isValid = False
     if isValid:
         user_id = str(message.from_user.id)
-        print(f'ID пользователя, который ввел данные: {user_id}')
-        write_to_sheet(number, user_id, date)  # записываем число в таблицу
-        # list_of_data.append(number)  # добавляем число в список
-        # count_of_dist += int(number)  # увеличиваем общий счетчик
-        bot.reply_to(message, f'Number {number} has been recorded on the date {date}')
-        bot.set_message_reaction(chat_id=message.chat.id,
-                                 message_id=message.id,
-                                 reaction=[ReactionTypeEmoji("✍")]
-                                 )
+        if verify_id(user_id):
+            print(f'ID пользователя, который ввел данные: {user_id}')
+            write_to_sheet(number, user_id, date)  # записываем число в таблицу
+            # list_of_data.append(number)  # добавляем число в список
+            # count_of_dist += int(number)  # увеличиваем общий счетчик
+            bot.reply_to(message, f'Число {number} было записано в дату: {date}')
+            bot.set_message_reaction(chat_id=message.chat.id,
+                                     message_id=message.id,
+                                     reaction=[ReactionTypeEmoji("✍")]
+                                     )
+        else:
+            bot.reply_to(message, "Вас нет в таблице или вашего ID нет в общей базе")
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
                                  reaction=[ReactionTypeEmoji("👎")])
-        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
+        bot.reply_to(message, 'Дата введена неверно, ознакомьтесь с инструкцией в /help')
 
 
 # Обработчик сообщений, начинающихся с "+" и числа
-# /todo проверять формат метров
 @bot.message_handler(func=plus_message_handling)
 def handle_number_message(message):
     number = message.text[1:]
@@ -111,7 +119,7 @@ def handle_number_message(message):
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
                                  reaction=[ReactionTypeEmoji("👎")])
-        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
+        bot.reply_to(message, 'Команда введена неверно, ознакомьтесь с инструкцией в /help')
 
 
 # Обработчик команды /start
@@ -127,7 +135,7 @@ def handle_start(message):
 @bot.message_handler(commands=['help'])
 def handle_help(message):
     bot.reply_to(message, "Расстояние нужно писать исключительно в виде метров\n"
-                          "Список команд и правил записи:\n"
+                          "Список команд и правил записи:\n\n"
                           "+<кол-во_метров> - записать метры (пример: +1000)\n"
                           "+<кол-во_метров дата> - записать в конкретную дату\n (пример: +100 19.04.2025)\n"
                           "")
