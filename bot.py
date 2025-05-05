@@ -59,24 +59,37 @@ def plus_message_handling(message):
 
 
 def plus_data_message_handing(message):
-    return message.text.startswith('+') and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
+    return plus_message_handling(message) and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
 
 
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
 @bot.message_handler(func=plus_data_message_handing)
 def handle_number_with_data_message(message):
     number = message.text.split()[0][1:]
-    date = str(message.text.split()[1])  # ToDo проверять формат даты
-    user_id = str(message.from_user.id)
-    print(f'ID пользователя, который ввел данные: {user_id}')
-    write_to_sheet(number, user_id, date)  # записываем число в таблицу
-    # list_of_data.append(number)  # добавляем число в список
-    # count_of_dist += int(number)  # увеличиваем общий счетчик
-    bot.reply_to(message, f'Number {number} has been recorded on the date {date}')
-    bot.set_message_reaction(chat_id=message.chat.id,
-                             message_id=message.id,
-                             reaction=[ReactionTypeEmoji("✍")]
-                             )
+    date = str(message.text.split()[1])
+    # Блок проверки валидности вводимой даты
+    pattern_of_date = "%d.%m.%Y"  # паттерн правильной даты
+    isValid = True
+    try:
+        isValid = bool(datetime.strptime(date, pattern_of_date))
+    except ValueError:
+        isValid = False
+    if isValid:
+        user_id = str(message.from_user.id)
+        print(f'ID пользователя, который ввел данные: {user_id}')
+        write_to_sheet(number, user_id, date)  # записываем число в таблицу
+        # list_of_data.append(number)  # добавляем число в список
+        # count_of_dist += int(number)  # увеличиваем общий счетчик
+        bot.reply_to(message, f'Number {number} has been recorded on the date {date}')
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("✍")]
+                                 )
+    else:
+        bot.set_message_reaction(chat_id=message.chat.id,
+                                 message_id=message.id,
+                                 reaction=[ReactionTypeEmoji("👎")])
+        bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
 
 
 # Обработчик сообщений, начинающихся с "+" и числа
@@ -97,7 +110,7 @@ def handle_number_message(message):
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
-                                 reaction=[ReactionTypeEmoji("❌")])
+                                 reaction=[ReactionTypeEmoji("👎")])
         bot.reply_to(message, 'Данные введены неверно, ознакомьтесь с инструкцией в /help')
 
 
