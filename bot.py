@@ -34,8 +34,8 @@ def get_gsheet_client():
 # Функция для записи данных в Google Sheets
 def write_to_sheet(value, usr_id, date):
     """Берем текущую дату"""
-    if date == "":
-        date = datetime.now().strftime("%d.%m.%Y")  # -> "13.04.2025"
+    # if date == "":
+    #     date = datetime.now().strftime("%d.%m.%Y")
 
     try:
         client = get_gsheet_client()
@@ -107,7 +107,8 @@ def handle_number_message(message):
     number = message.text[1:]
     if plus_message_handling(message) and message.text[1:].isdigit():
         user_id = str(message.from_user.id)
-        date = ""
+        date_obj = datetime.fromtimestamp(message.date)  # Преобразовываем дату из unix timestamp в datetime obj
+        date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нормальный формат -> "13.04.2025"
         print(f'ID пользователя, который ввел данные: {user_id}')
         write_to_sheet(number, user_id, date)  # записываем число в таблицу
 
