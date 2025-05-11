@@ -48,7 +48,9 @@ def write_to_sheet(value, usr_id, date):
 def handle_number_message(message):
     number = message.text[1:]
     user_id = str(message.from_user.id)
-    date = ""
+    date_obj = datetime.fromtimestamp(message.date) # Извлекаем дату сообщения. Дата в формате unix timestamp
+    date = date_obj.strftime("%d.%m.%Y") # преобразуем в норм формат
+    print(date)
     print(f'ID пользователя, который ввел данные: {user_id}')
     write_to_sheet(number, user_id, date)  # записываем число в таблицу
     # list_of_data.append(number)  # добавляем число в список
