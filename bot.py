@@ -107,7 +107,10 @@ def handle_number_message(message):
     number = message.text[1:]
     if plus_message_handling(message) and message.text[1:].isdigit():
         user_id = str(message.from_user.id)
-        date_obj = datetime.fromtimestamp(message.date)  # Преобразовываем дату из unix timestamp в datetime obj
+        """
+        Извлекаем дату сообщения. Дата в формате unix timestamp. Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
+        """
+        date_obj = datetime.fromtimestamp(message.date+18000)  # Преобразовываем дату из unix timestamp в datetime obj
         date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нормальный формат -> "13.04.2025"
         print(f'ID пользователя, который ввел данные: {user_id}')
         write_to_sheet(number, user_id, date)  # записываем число в таблицу
