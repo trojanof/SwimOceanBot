@@ -48,8 +48,12 @@ def write_to_sheet(value, usr_id, date):
 def handle_number_message(message):
     number = message.text[1:]
     user_id = str(message.from_user.id)
-    date_obj = datetime.fromtimestamp(message.date) # Извлекаем дату сообщения. Дата в формате unix timestamp
-    date = date_obj.strftime("%d.%m.%Y") # преобразуем в норм формат
+    """
+    Извлекаем дату сообщения. Дата в формате unix timestamp. Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
+    """
+    date_obj = datetime.fromtimestamp(message.date + 18000)
+
+    date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нужный формат даты
     print(date)
     print(f'ID пользователя, который ввел данные: {user_id}')
     write_to_sheet(number, user_id, date)  # записываем число в таблицу
