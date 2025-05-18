@@ -32,7 +32,7 @@ def get_gsheet_client():
 
 
 # Функция для записи данных в Google Sheets
-def write_to_sheet(value, usr_id, date):
+def write_to_sheet(value, usr_name, date):
     """Берем текущую дату"""
     # if date == "":
     #     date = datetime.now().strftime("%d.%m.%Y")
@@ -42,8 +42,8 @@ def write_to_sheet(value, usr_id, date):
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
         """Ищем строку с указанной датой"""
         dates = sheet.col_values(1)  # Получаем все даты из столбца A (он с датами)
-        # if user_column_map[usr_id]:
-        usr_name = user_column_map[usr_id]  # вытаскиваем из словаря Имя пользователя по его tg-id
+        # if user_column_map[usr_name]:
+        usr_name = user_column_map[usr_name]  # вытаскиваем из словаря Имя пользователя по его tg-id
         col_names = sheet.row_values(1)  # список всех имен пользователей
         col_index = col_names.index(usr_name) + 1
         row_num = dates.index(date) + 1  # +1 т.к. нумерация с 1
@@ -55,8 +55,8 @@ def write_to_sheet(value, usr_id, date):
 
 
 # Проверка есть ли ID пользователя в общей базе
-def verify_id(user_id):
-    if user_column_map[user_id]:
+def verify_id(user_name):
+    if user_column_map[user_name]:
         return True
 
 
@@ -81,10 +81,10 @@ def handle_number_with_data_message(message):
     except ValueError:
         isValid = False
     if isValid:
-        user_id = str(message.from_user.id)
-        if verify_id(user_id):
-            print(f'ID пользователя, который ввел данные: {user_id}')
-            write_to_sheet(number, user_id, date)  # записываем число в таблицу
+        user_name = str(message.from_user.username)
+        if verify_id(user_name):
+            print(f'ID пользователя, который ввел данные: {user_name}')
+            write_to_sheet(number, user_name, date)  # записываем число в таблицу
             # list_of_data.append(number)  # добавляем число в список
             # count_of_dist += int(number)  # увеличиваем общий счетчик
             bot.reply_to(message, f'Число {number} было записано в дату: {date}')
@@ -106,14 +106,14 @@ def handle_number_with_data_message(message):
 def handle_number_message(message):
     number = message.text[1:]
     if plus_message_handling(message) and message.text[1:].isdigit():
-        user_id = str(message.from_user.id)
+        user_name = str(message.from_user.username)
         """
         Извлекаем дату сообщения. Дата в формате unix timestamp. Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
         """
         date_obj = datetime.fromtimestamp(message.date+18000)  # Преобразовываем дату из unix timestamp в datetime obj
         date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нормальный формат -> "13.04.2025"
-        print(f'ID пользователя, который ввел данные: {user_id}')
-        write_to_sheet(number, user_id, date)  # записываем число в таблицу
+        print(f'ID пользователя, который ввел данные: {user_name}')
+        write_to_sheet(number, user_name, date)  # записываем число в таблицу
 
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
