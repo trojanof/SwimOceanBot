@@ -33,16 +33,12 @@ def get_gsheet_client():
 
 # Функция для записи данных в Google Sheets
 def write_to_sheet(value, usr_name, date):
-    """Берем текущую дату"""
-    # if date == "":
-    #     date = datetime.now().strftime("%d.%m.%Y")
-
     try:
         client = get_gsheet_client()
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
         """Ищем строку с указанной датой"""
         dates = sheet.col_values(1)  # Получаем все даты из столбца A (он с датами)
-        # if user_column_map[usr_name]:
+
         usr_name = user_column_map[usr_name]  # вытаскиваем из словаря Имя пользователя по его tg-id
         col_names = sheet.row_values(1)  # список всех имен пользователей
         col_index = col_names.index(usr_name) + 1
@@ -56,7 +52,7 @@ def write_to_sheet(value, usr_name, date):
 
 # Проверка есть ли ID пользователя в общей базе
 def verify_id(user_name):
-    if user_column_map[user_name]:
+    if user_name in user_column_map.keys():
         return True
 
 
@@ -85,8 +81,6 @@ def handle_number_with_data_message(message):
         if verify_id(user_name):
             print(f'ID пользователя, который ввел данные: {user_name}')
             write_to_sheet(number, user_name, date)  # записываем число в таблицу
-            # list_of_data.append(number)  # добавляем число в список
-            # count_of_dist += int(number)  # увеличиваем общий счетчик
             bot.reply_to(message, f'Число {number} было записано в дату: {date}')
             bot.set_message_reaction(chat_id=message.chat.id,
                                      message_id=message.id,
@@ -110,15 +104,18 @@ def handle_number_message(message):
         """
         Извлекаем дату сообщения. Дата в формате unix timestamp. Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
         """
-        date_obj = datetime.fromtimestamp(message.date+18000)  # Преобразовываем дату из unix timestamp в datetime obj
+        date_obj = datetime.fromtimestamp(message.date + 18000)  # Преобразовываем дату из unix timestamp в datetime obj
         date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нормальный формат -> "13.04.2025"
-        print(f'ID пользователя, который ввел данные: {user_name}')
-        write_to_sheet(number, user_name, date)  # записываем число в таблицу
+        if verify_id(user_name):
+            print(f'ID пользователя, который ввел данные: {user_name}')
+            write_to_sheet(number, user_name, date)  # записываем число в таблицу
 
-        bot.set_message_reaction(chat_id=message.chat.id,
-                                 message_id=message.id,
-                                 reaction=[ReactionTypeEmoji("✍")]
-                                 )
+            bot.set_message_reaction(chat_id=message.chat.id,
+                                     message_id=message.id,
+                                     reaction=[ReactionTypeEmoji("✍")]
+                                     )
+        else:
+            bot.reply_to(message, "Вас нет в таблице или вашего ID нет в общей базе")
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
@@ -129,16 +126,15 @@ def handle_number_message(message):
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "Привет! Я бот, который записывает метры, которые вы проплыли, в таблицу. "
+    bot.reply_to(message, "Привет! Я бот, который следит, чтобы все проплытые метры были учтены в наших заплывах! "
                           "Чтобы увидеть список команд, которые я понимаю, и формат, "
                           "в котором нужно записывать метры, введите команду /help")
 
 
-# /todo Доделать обработчик команды help, докидать команд
 # Обработчик команды /help
 @bot.message_handler(commands=['help'])
 def handle_help(message):
-    bot.reply_to(message, "Расстояние нужно писать исключительно в виде метров\n"
+    bot.reply_to(message, "Расстояние нужно писать исключительно в виде метров.\n"
                           "Список команд и правил записи:\n\n"
                           "+<кол-во_метров> - записать метры (пример: +1000)\n"
                           "+<кол-во_метров дата> - записать в конкретную дату\n (пример: +100 19.04.2025)\n"
