@@ -53,7 +53,7 @@ def write_to_sheet(value, usr_name, date):
 # Проверка есть ли ID пользователя в общей базе
 def get_user_key(message):
     if message.from_user.id:
-        user_id = message.from_user_id
+        user_id = message.from_user.id
         if user_id in user_column_map.keys():
             return user_id
         else:
