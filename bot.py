@@ -56,14 +56,10 @@ def get_user_key(message):
         user_id = str(message.from_user.id)
         if user_id in user_column_map.keys():
             return user_id
-        # else:
-        #     return None
     if message.from_user.username:
         username = message.from_user.username
         if username in user_column_map.keys():
             return username
-        # else:
-        #     return None
     else:
         user_frst_name = message.from_user.first_name
         if user_frst_name in user_column_map.keys():
