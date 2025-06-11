@@ -7,7 +7,7 @@ from telebot.types import ReactionTypeEmoji
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from settings import TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # Инициализация бота
 bot = telebot.TeleBot(TOKEN)
@@ -68,6 +68,13 @@ def get_user_key(message):
             return None
 
 
+def is_date_valid(input_date):
+    now_utc = datetime.now(timezone.utc)
+    # Добавляем смещение +5 часов и округляем до дня
+    today = (now_utc + timedelta(hours=5)).date()
+    return input_date <= today
+
+
 def plus_message_handling(message):
     return message.text.startswith('+')
 
@@ -88,7 +95,7 @@ def handle_number_with_data_message(message):
         isValid = bool(datetime.strptime(date, pattern_of_date))
     except ValueError:
         isValid = False
-    if isValid:
+    if isValid and is_date_valid(date):
         user_key = get_user_key(message)
         if user_key:
             print(f'ID пользователя, который ввел данные: {user_key}')
