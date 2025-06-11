@@ -68,11 +68,12 @@ def get_user_key(message):
             return None
 
 
-def is_date_valid(input_date):
+def is_date_valid(input_date_str):
+    user_date = datetime.strptime(input_date_str, "%d.%m.%Y").date()
     now_utc = datetime.now(timezone.utc)
     # Добавляем смещение +5 часов и округляем до дня
     today = (now_utc + timedelta(hours=5)).date()
-    return input_date <= today
+    return user_date <= today
 
 
 def plus_message_handling(message):
