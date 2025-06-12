@@ -99,6 +99,7 @@ def get_sum_for_period(df):
 
     # Создаем BytesIO объект
     img = BytesIO(img_data)
+    tmp_dir.cleanup()
     return img
 
 
@@ -206,7 +207,9 @@ def handle_number_message(message):
                                      reaction=[ReactionTypeEmoji("✍")]
                                      )
         else:
-            bot.reply_to(message, "Вас нет в таблице или вашего ID нет в общей базе")
+            msg = ("Вас нет в таблице или вашего ID нет в общей базе. "
+                   "Обратитесь к администратору бота")
+            bot.reply_to(message, msg)
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
@@ -233,84 +236,55 @@ def handle_help(message):
                           "")
 
 
-# Функция для создания таблицы с названием
-def create_table(data, title=None):
-    # Определяем максимальную ширину каждого столбца
-    col_widths = []
-    for col in range(len(data[0])):
-        max_width = max(len(str(row[col])) for row in data)
-        col_widths.append(max_width)
-    
-    # Общая ширина таблицы
-    total_width = sum(col_widths) + len(col_widths) * 3 - 1
-    
-    lines = []
-    
-    # Добавляем название таблицы, если оно есть
-    if title:
-        # Рамка для названия
-        title_line = '┌' + '─' * (total_width) + '┐'
-        lines.append(title_line)
-        
-        # Центрируем название
-        title_text = f'│ {title.center(total_width - 2)} │'
-        lines.append(title_text)
-        
-        # Разделитель под названием
-        title_sep = '├' + '┬'.join('─' * (w + 2) for w in col_widths) + '┤'
-        lines.append(title_sep)
-    else:
-        # Верхняя граница без названия
-        top_line = '┌' + '┬'.join('─' * (w + 2) for w in col_widths) + '┐'
-        lines.append(top_line)
-    
-    # Заголовок
-    header = '│' + '│'.join(f' {str(data[0][i]).ljust(col_widths[i])} ' 
-                            for i in range(len(data[0]))) + '│'
-    lines.append(header)
-    
-    # Разделитель после заголовка
-    sep_line = '├' + '┼'.join('─' * (w + 2) for w in col_widths) + '┤'
-    lines.append(sep_line)
-    
-    # Данные
-    for row in data[1:]:
-        data_line = '│' + '│'.join(f' {str(row[i]).ljust(col_widths[i])} ' 
-                                    for i in range(len(row))) + '│'
-        lines.append(data_line)
-    
-    # Нижняя граница
-    bottom_line = '└' + '┴'.join('─' * (w + 2) for w in col_widths) + '┘'
-    lines.append(bottom_line)
-    
-    return '\n'.join(lines)
+def get_month_name(month_number):
+    months = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+              'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    return months[month_number]
+
+
+def create_mobile_table(data, title):
+    # Используем компактную горизонтальную таблицу
+    lines = [title, ""]
+    for row in data:
+        line = " │ ".join(f"{str(cell):^8}" for cell in row)
+        lines.append(line)
+        if row == data[0]:  # После заголовка
+            lines.append("─" * (len(line) - 1))
+    return f"<pre>{chr(10).join(lines)}</pre>"
 
 
 # Персональная статистика
 @bot.message_handler(commands=['stat_my'])
 def handle_pstat(message):
     user_key = get_user_key(message)
-    user_name = user_column_map[user_key]
+    if user_key:
+        user_name = user_column_map[user_key]
+        start_date = pd.to_datetime(START_DATE, dayfirst=True)
+        today = datetime.now().date().strftime("%d.%m.%Y")
+        today = pd.to_datetime(today, dayfirst=True)
 
-    # personal_stats = get_personal_stats(usr_name)
-    
-    start_date = pd.to_datetime(START_DATE, dayfirst=True)
-    today = datetime.now().date().strftime("%d.%m.%Y")
-    today = pd.to_datetime(today, dayfirst=True)
-    period_df = get_statistics_for_period(start_date=start_date,
-                                          end_date=today)
-    sum_by_month = period_df[[user_name]].copy()
-    sum_by_month = sum_by_month.groupby(pd.Grouper(axis=0, freq='m')).sum()
-    count_by_month = period_df[[user_name]].copy()
-    count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0, freq='m')).count()
-    merged_df = pd.merge(left=sum_by_month, right=count_by_month, on='Date')
-    merged_df = merged_df.reset_index()
-    merged_df['Date'] = merged_df['Date'].apply(lambda x: x.month_name())
-    data = [['Месяц', 'Объём, м', 'Кол-во тренировок']]
-    data.extend(merged_df.values.tolist())
+        period_df = get_statistics_for_period(start_date=start_date,
+                                              end_date=today)
 
-    table = f"```\n{create_table(data, user_name)}\n```"
-    bot.send_message(message.chat.id, table, parse_mode='Markdown')
+        sum_by_month = period_df[[user_name]].copy()
+        sum_by_month = sum_by_month.groupby(pd.Grouper(axis=0, freq='m')).sum()
+        count_by_month = period_df[[user_name]].copy()
+        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0,freq='m')).count()
+
+        merged_df = pd.merge(left=sum_by_month, right=count_by_month, on='Date')
+        merged_df = merged_df.reset_index()
+        merged_df['Date'] = merged_df['Date'].apply(lambda x: get_month_name(x.month))
+
+        data = [['Месяц', 'Объём, м', 'Кол-во']]
+        data.extend(merged_df.values.tolist())
+
+        # table = f"```\n{create_table(data, user_name)}\n```"
+        result = create_mobile_table(data, user_name)
+        bot.send_message(message.chat.id, result, parse_mode='HTML')
+    else:
+        msg = ("Вас нет в таблице или вашего ID нет в общей базе. "
+               "Обратитесь к администратору бота")
+        bot.reply_to(message, msg)
 
 
 # Общая статистика
