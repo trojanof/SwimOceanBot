@@ -1,12 +1,17 @@
 import json
+from io import BytesIO
 from tempfile import TemporaryDirectory
 from pathlib import Path
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
 import telebot
 from telebot.types import ReactionTypeEmoji
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from settings import TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE
+from settings import (
+    TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE, START_DATE
+    )
 from datetime import datetime, timezone, timedelta
 
 # Инициализация бота
@@ -29,6 +34,73 @@ def get_gsheet_client():
     client = gspread.authorize(creds)
     tmp_dir.cleanup()
     return client
+
+
+def get_df_from_google_sheet(sheet_name):
+    client = get_gsheet_client()
+    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
+    data = sheet.get_all_values()
+    df = pd.DataFrame(data, columns=data[0])[1:]
+    return df
+
+
+def get_statistics_for_period(start_date: str, end_date: str):
+    '''
+    Возвращает статистики за выбранный период
+    '''
+    df = get_df_from_google_sheet(WORKSHEET_NAME)
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.set_index('Date')
+
+    for col in df.columns:
+        df[col] = df[col].replace('', 0)
+        df[col] = df[col].fillna(0)
+        df[col] = df[col].astype(float)
+
+    df = df.reset_index()
+    start_date = pd.to_datetime(start_date, dayfirst=True)
+    end_date = pd.to_datetime(end_date, dayfirst=True)
+    period_df = df[df['Date'].between(start_date, end_date)]
+    period_df = period_df.set_index('Date')
+    period_df = period_df.drop(['Day_distance', 'Cumulative_sum'], axis=1)
+    return period_df
+
+
+def get_sum_for_period(df):
+    sum_df = df.sum().to_frame().reset_index()
+    sum_df = sum_df.rename(columns={0: 'sum', 'index': 'people'})
+    sum_df = sum_df.sort_values(by='sum', ascending=False)
+    sum_df = sum_df[sum_df['sum'] > 0]
+
+    min_date = df.index.min().strftime("%d.%m.%Y")
+    max_date = df.index.max().strftime("%d.%m.%Y")
+
+    sum_df = sum_df[sum_df['sum'] > 0]
+    fig, ax = plt.subplots(figsize=(12, 6))
+    fig.subplots_adjust()
+    bar_container = ax.bar(x=sum_df['people'],
+                           height=sum_df['sum'],
+                           width=0.6,
+                           color='green'
+                           )
+    ax.bar_label(bar_container)
+    ax.set(ylabel='Метраж',
+           title=f'Метры за период {min_date} - {max_date}'
+           )
+    ax.tick_params(axis='x', labelrotation=90)
+
+    tmp_dir = TemporaryDirectory()
+    tmp_dir_path = Path(tmp_dir.name)
+    img_path = tmp_dir_path / 'sum.png'
+    fig.savefig(img_path, bbox_inches='tight')
+
+    with open(img_path, 'rb') as file:
+        img_data = file.read()
+
+    # Создаем BytesIO объект
+    img = BytesIO(img_data)
+    tmp_dir.cleanup()
+    return img
 
 
 # Функция для записи данных в Google Sheets
@@ -135,7 +207,9 @@ def handle_number_message(message):
                                      reaction=[ReactionTypeEmoji("✍")]
                                      )
         else:
-            bot.reply_to(message, "Вас нет в таблице или вашего ID нет в общей базе")
+            msg = ("Вас нет в таблице или вашего ID нет в общей базе. "
+                   "Обратитесь к администратору бота")
+            bot.reply_to(message, msg)
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
@@ -160,6 +234,71 @@ def handle_help(message):
                           "+<кол-во_метров> - записать метры (пример: +1000)\n"
                           "+<кол-во_метров дата> - записать в прошедшую дату\n (пример: +100 19.04.2025)\n"
                           "")
+
+
+def get_month_name(month_number):
+    months = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+              'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    return months[month_number]
+
+
+def create_mobile_table(data, title):
+    # Используем компактную горизонтальную таблицу
+    lines = [title, ""]
+    for row in data:
+        line = " │ ".join(f"{str(cell):^8}" for cell in row)
+        lines.append(line)
+        if row == data[0]:  # После заголовка
+            lines.append("─" * (len(line) - 1))
+    return f"<pre>{chr(10).join(lines)}</pre>"
+
+
+# Персональная статистика
+@bot.message_handler(commands=['stat_my'])
+def handle_pstat(message):
+    user_key = get_user_key(message)
+    if user_key:
+        user_name = user_column_map[user_key]
+        start_date = pd.to_datetime(START_DATE, dayfirst=True)
+        today = datetime.now().date().strftime("%d.%m.%Y")
+        today = pd.to_datetime(today, dayfirst=True)
+
+        period_df = get_statistics_for_period(start_date=start_date,
+                                              end_date=today)
+
+        sum_by_month = period_df[[user_name]].copy()
+        sum_by_month = sum_by_month.groupby(pd.Grouper(axis=0, freq='m')).sum()
+        count_by_month = period_df[[user_name]].copy()
+        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0,freq='m')).count()
+
+        merged_df = pd.merge(left=sum_by_month, right=count_by_month, on='Date')
+        merged_df = merged_df.reset_index()
+        merged_df['Date'] = merged_df['Date'].apply(lambda x: get_month_name(x.month))
+
+        data = [['Месяц', 'Объём, м', 'Кол-во']]
+        data.extend(merged_df.values.tolist())
+
+        # table = f"```\n{create_table(data, user_name)}\n```"
+        result = create_mobile_table(data, user_name)
+        bot.send_message(message.chat.id, result, parse_mode='HTML')
+    else:
+        msg = ("Вас нет в таблице или вашего ID нет в общей базе. "
+               "Обратитесь к администратору бота")
+        bot.reply_to(message, msg)
+
+
+# Общая статистика
+@bot.message_handler(commands=['stat_all'])
+def handle_all_stat(message):
+    start_date = pd.to_datetime(START_DATE, dayfirst=True)
+    today = datetime.now().date().strftime("%d.%m.%Y")
+    today = pd.to_datetime(today, dayfirst=True)
+    period_df = get_statistics_for_period(start_date=start_date,
+                                          end_date=today)
+    img = get_sum_for_period(period_df)
+    bot.send_photo(chat_id=message.chat.id,
+                   photo=img,
+                   caption='Общая статистика')
 
 
 # Запуск бота
