@@ -11,7 +11,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from settings import (
     TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE, START_DATE
-    )
+)
 from datetime import datetime, timezone, timedelta
 
 # Инициализация бота
@@ -45,9 +45,9 @@ def get_df_from_google_sheet(sheet_name):
 
 
 def get_statistics_for_period(start_date: str, end_date: str):
-    '''
+    """
     Возвращает статистики за выбранный период
-    '''
+    """
     df = get_df_from_google_sheet(WORKSHEET_NAME)
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.set_index('Date')
@@ -220,7 +220,8 @@ def handle_number_message(message):
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "Привет! Я бот, который следит, чтобы все проплытые метры были учтены в наших заплывах! "
+    bot.reply_to(message, "Привет! Я бот клуба SwimOcean, который следит, чтобы все проплытые метры были учтены в "
+                          "наших заплывах! "
                           "Чтобы увидеть список команд, которые я понимаю, и формат, "
                           "в котором нужно записывать метры, введите команду /help")
 
@@ -232,8 +233,9 @@ def handle_help(message):
                           "Запись в даты в будущем невозможна.\n"
                           "Список команд и правил записи:\n\n"
                           "+<кол-во_метров> - записать метры (пример: +1000)\n"
-                          "+<кол-во_метров дата> - записать в прошедшую дату\n (пример: +100 19.04.2025)\n"
-                          "")
+                          "+<кол-во_метров дата> - записать в прошедшую дату\n (пример: +100 19.04.2025)\n\n"
+                          "/stat_my - вывод персональной статистики за весь период по месяцам\n"
+                          "/stat_all - показ общей статистики")
 
 
 def get_month_name(month_number):
@@ -269,7 +271,7 @@ def handle_pstat(message):
         sum_by_month = period_df[[user_name]].copy()
         sum_by_month = sum_by_month.groupby(pd.Grouper(axis=0, freq='m')).sum()
         count_by_month = period_df[[user_name]].copy()
-        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0,freq='m')).count()
+        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0, freq='m')).count()
 
         merged_df = pd.merge(left=sum_by_month, right=count_by_month, on='Date')
         merged_df = merged_df.reset_index()
