@@ -1,16 +1,22 @@
 import json
+import pytz
 from io import BytesIO
 from tempfile import TemporaryDirectory
 from pathlib import Path
 import streamlit as st
+from streamlit_folium import folium_static
 import pandas as pd
 import matplotlib.pyplot as plt
 import telebot
 from telebot.types import ReactionTypeEmoji
+from telebot.types import (InlineKeyboardMarkup, InlineKeyboardButton,
+                           WebAppInfo, ReplyKeyboardMarkup, KeyboardButton)
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from map import prepare_map
 from settings import (
-    TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE, START_DATE
+    TOKEN, SPREADSHEET_ID, WORKSHEET_NAME, user_column_map, SCOPE, START_DATE,
+    LOCATIONS_SHEET_NAME, DEFAULT_START_CAPTION, DEFAULT_FINISH_CAPTION
 )
 from datetime import datetime, timezone, timedelta
 
@@ -38,10 +44,38 @@ def get_gsheet_client():
 
 def get_df_from_google_sheet(sheet_name):
     client = get_gsheet_client()
-    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
+    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(sheet_name)
     data = sheet.get_all_values()
     df = pd.DataFrame(data, columns=data[0])[1:]
     return df
+
+
+def get_distance_at_day(day):
+    '''
+    Get distance value from table on requested day
+    Distance in meters
+    '''
+    df = get_df_from_google_sheet(WORKSHEET_NAME)
+    df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
+    df['Cumulative_sum'] = df['Cumulative_sum'].replace('', None)
+    df['Cumulative_sum'] = df['Cumulative_sum'].ffill()
+    df['Cumulative_sum'] = df['Cumulative_sum'].astype(int)
+    dist = df[df['Date'] == day]['Cumulative_sum'].values[0]
+    return dist
+
+
+def get_location(dist):
+    '''
+    Get location table and an index corresponding to the
+    next destination location, i.e. returns df, ind, such that
+    df[ind] is a row describing next destination
+    '''
+    df = get_df_from_google_sheet(LOCATIONS_SHEET_NAME)
+    df['Cumul_dist'] = df['Cumul_dist'].replace('', 0)
+    df['Cumul_dist'] = df['Cumul_dist'].astype(int)
+    next_df = df[df['Cumul_dist'] > dist]
+    ind = next_df[next_df['Cumul_dist'] == next_df['Cumul_dist'].min()].index
+    return df, ind
 
 
 def get_statistics_for_period(start_date: str, end_date: str):
@@ -109,13 +143,17 @@ def write_to_sheet(value, usr_name, date):
         client = get_gsheet_client()
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
         """Ищем строку с указанной датой"""
-        dates = sheet.col_values(1)  # Получаем все даты из столбца A (он с датами)
+        # Получаем все даты из столбца A (он с датами):
+        dates = sheet.col_values(1)
 
-        usr_name = user_column_map[usr_name]  # вытаскиваем из словаря Имя пользователя по его tg-id
+        # вытаскиваем из словаря Имя пользователя по его tg-id:
+        usr_name = user_column_map[usr_name]
         col_names = sheet.row_values(1)  # список всех имен пользователей
         col_index = col_names.index(usr_name) + 1
         row_num = dates.index(date) + 1  # +1 т.к. нумерация с 1
-        sheet.update_cell(row_num, col_index, value)  # добавляем в последнюю ячейку определенного столбца данные
+
+        # добавляем в последнюю ячейку определенного столбца данные:
+        sheet.update_cell(row_num, col_index, value)
         print(f'Value "{value}" appended to sheet')
 
     except Exception as e:
@@ -153,7 +191,10 @@ def plus_message_handling(message):
 
 
 def plus_data_message_handing(message):
-    return plus_message_handling(message) and message.text.split()[0][1:].isdigit() and len(message.text.split()) == 2
+    result = (plus_message_handling(message) and
+              message.text.split()[0][1:].isdigit() and
+              len(message.text.split()) == 2)
+    return result
 
 
 # Обработчик сообщений вида: +метры дата_куда_нужно_записать_метры
@@ -172,19 +213,23 @@ def handle_number_with_data_message(message):
         user_key = get_user_key(message)
         if user_key:
             print(f'ID пользователя, который ввел данные: {user_key}')
-            write_to_sheet(number, user_key, date)  # записываем число в таблицу
-            bot.reply_to(message, f'Число {number} было записано в дату: {date}')
+            # записываем число в таблицу:
+            write_to_sheet(number, user_key, date) 
+            bot.reply_to(message,
+                         f'Число {number} было записано в дату: {date}')
             bot.set_message_reaction(chat_id=message.chat.id,
                                      message_id=message.id,
                                      reaction=[ReactionTypeEmoji("✍")]
                                      )
         else:
-            bot.reply_to(message, "Вас нет в таблице или вашего ID нет в общей базе")
+            bot.reply_to(message,
+                         "Вас нет в таблице или вашего ID нет в общей базе")
     else:
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
                                  reaction=[ReactionTypeEmoji("👎")])
-        bot.reply_to(message, 'Дата введена неверно, ознакомьтесь с инструкцией в /help')
+        msg = 'Дата введена неверно, ознакомьтесь с инструкцией в /help'
+        bot.reply_to(message, msg)
 
 
 # Обработчик сообщений, начинающихся с "+" и числа
@@ -193,14 +238,19 @@ def handle_number_message(message):
     number = message.text[1:]
     if plus_message_handling(message) and message.text[1:].isdigit():
         """
-        Извлекаем дату сообщения. Дата в формате unix timestamp. Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
+        Извлекаем дату сообщения. Дата в формате unix timestamp.
+        Прибавляем 18000 = 5 часов т.к. дата хранится в GMT+0
         """
-        date_obj = datetime.fromtimestamp(message.date + 18000)  # Преобразовываем дату из unix timestamp в datetime obj
-        date = date_obj.strftime("%d.%m.%Y")  # преобразуем в нормальный формат -> "13.04.2025"
+        # Преобразовываем дату из unix timestamp в datetime obj:
+        date_obj = datetime.fromtimestamp(message.date + 18000)
+
+        # преобразуем в нормальный формат -> "13.04.2025":
+        date = date_obj.strftime("%d.%m.%Y")
         user_key = get_user_key(message)
         if user_key:
             print(f'ID пользователя, который ввел данные: {user_key}')
-            write_to_sheet(number, user_key, date)  # записываем число в таблицу
+            # записываем число в таблицу:
+            write_to_sheet(number, user_key, date)
 
             bot.set_message_reaction(chat_id=message.chat.id,
                                      message_id=message.id,
@@ -214,7 +264,8 @@ def handle_number_message(message):
         bot.set_message_reaction(chat_id=message.chat.id,
                                  message_id=message.id,
                                  reaction=[ReactionTypeEmoji("👎")])
-        bot.reply_to(message, 'Команда введена неверно, ознакомьтесь с инструкцией в /help')
+        msg = 'Команда введена неверно, ознакомьтесь с инструкцией в /help'
+        bot.reply_to(message, msg)
 
 
 # Обработчик команды /start
@@ -274,11 +325,15 @@ def handle_pstat(message):
         sum_by_month = period_df[[user_name]].copy()
         sum_by_month = sum_by_month.groupby(pd.Grouper(axis=0, freq='m')).sum()
         count_by_month = period_df[[user_name]].copy()
-        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(axis=0, freq='m')).count()
+        count_by_month = count_by_month.replace(0, None).groupby(pd.Grouper(
+            axis=0, freq='m'
+            )).count()
 
         merged_df = pd.merge(left=sum_by_month, right=count_by_month, on='Date')
         merged_df = merged_df.reset_index()
-        merged_df['Date'] = merged_df['Date'].apply(lambda x: get_month_name(x.month))
+        merged_df['Date'] = merged_df['Date'].apply(
+            lambda x: get_month_name(x.month)
+            )
 
         data = [['Месяц', 'Объём, м', 'Кол-во']]
         data.extend(merged_df.values.tolist())
@@ -306,8 +361,64 @@ def handle_all_stat(message):
                    caption='Общая статистика')
 
 
+@bot.message_handler(commands=['map2'])
+def open_web_app(message):
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(KeyboardButton(
+        "Посмотреть где мы плывём",
+        web_app=WebAppInfo(url="https://swimocean.streamlit.app/")
+    ))
+    bot.send_message(message.chat.id,
+                     "Чтобы посмотреть где мы плывем воспользуйтесь кнопкой из меню",
+                     reply_markup=markup)
+
+
+def map_only():
+    tz = pytz.timezone('Asia/Yekaterinburg')
+    today = datetime.now(tz).date().strftime("%d.%m.%Y")
+    today = pd.to_datetime(today, dayfirst=True)
+    # st.session_state.map = None
+
+    overall_distance = get_distance_at_day(today)
+    df, ind = get_location(overall_distance)
+    if ind == df.index.min():
+        current_dist = overall_distance
+    else:
+        current_dist = overall_distance - df.loc[ind-1, 'Cumul_dist'].values[0]
+
+    start_coord = df.loc[ind, 'Start_point'].values[0].split(',')
+    finish_coord = df.loc[ind, 'Finish_point'].values[0].split(',')
+    start_coord = [float(i) for i in start_coord]
+    finish_coord = [float(i) for i in finish_coord]
+
+    dist = int(df.loc[ind, 'Distance'].values[0])
+
+    start_caption = df.loc[ind, 'Start_caption'].values[0]
+    finish_caption = df.loc[ind, 'Finish_caption'].values[0]
+    if start_caption:
+        start_caption = DEFAULT_START_CAPTION + ': ' + start_caption
+    else:
+        start_caption = DEFAULT_START_CAPTION
+    if finish_caption:
+        finish_caption = DEFAULT_FINISH_CAPTION + ': ' + finish_caption
+    else:
+        finish_caption = DEFAULT_FINISH_CAPTION
+    description = df.loc[ind, 'Description'].values[0]
+    st.write(description)
+    map = prepare_map(start_coord,
+                      finish_coord,
+                      start_caption,
+                      finish_caption,
+                      dist,
+                      distance_travelled=current_dist)
+    folium_static(map, width=600)
+    return map
+
+
 # Запуск бота
 if __name__ == '__main__':
     st.write('Bot is running...')
+    map_only()
+    st.write('text')
     bot.polling(none_stop=True)
     st.stop()
