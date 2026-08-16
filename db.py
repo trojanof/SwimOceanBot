@@ -1,4 +1,3 @@
-# db.py
 import sqlite3
 import os
 from settings import DATA_DIR
