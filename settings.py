@@ -32,6 +32,7 @@ if raw_admins:
 else:
     print("WARNING: Переменная ADMIN_IDS не найдена. У бота нет администраторов!")
 
+
 def encrypt_data(data: str) -> str:
     """Шифрует строку"""
     return fernet.encrypt(data.encode()).decode()
@@ -50,5 +51,13 @@ SCOPE = ['https://www.googleapis.com/auth/spreadsheets']
 START_DATE = '13-01-2025'
 
 # Папка для данных и бэкапов
-DATA_DIR = '/data' if os.path.exists('/') else './data'
-os.makedirs(DATA_DIR, exist_ok=True)
+if os.path.exists('/data') and os.path.isdir('/data'):
+    DATA_DIR = '/data'
+else:
+    # Локально на компьютере создаст папку 'data' рядом с файлом settings.py
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except Exception as e:
+    print(f"Предупреждение при создании DATA_DIR: {e}")

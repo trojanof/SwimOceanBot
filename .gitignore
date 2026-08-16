@@ -12,3 +12,8 @@ venv/
 creds/
 .venv/
 /creds/
+data/
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
