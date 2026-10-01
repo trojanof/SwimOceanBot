@@ -310,7 +310,7 @@ def _chrome_service() -> Service | None:
 def save_map_as_png(
     map_object,
     window_size: tuple[int, int] = (800, 800),
-    wait_seconds: float = 3,
+    wait_seconds: float = 5,
 ) -> BytesIO:
     tmp_dir = TemporaryDirectory()
     html_path = Path(tmp_dir.name) / "temp_map.html"
@@ -325,6 +325,7 @@ def save_map_as_png(
             if service
             else webdriver.Chrome(options=options)
         )
+        driver.set_page_load_timeout(20)
         driver.get(f"file://{html_path.resolve()}")
         time.sleep(wait_seconds)
         png = BytesIO(driver.get_screenshot_as_png())
